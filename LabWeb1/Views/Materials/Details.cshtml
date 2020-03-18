@@ -1,0 +1,57 @@
+﻿@model LabWeb1.Material
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Деталі</h1>
+
+<div>
+    <h4>Матеріал</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Name)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Name)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.MaterialCard)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.MaterialCard)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.IdGarbageType)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.IdGarbageType)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Info)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Info)
+        </dd>
+        @if (ViewBag.GarbagesLength != 0)
+        {
+            <dt>@ViewBag.Garbage</dt>
+        }
+        @foreach (var g in ViewBag.GarbageList)
+        {
+            <dd class="col-sm-10">
+                <text>@g.Garbage.Name</text>
+            </dd>
+            if (ViewBag.GarbageList[ViewBag.GarbagesLength - 1] != g)
+            {
+                <dt class="col-sm-2">
+                </dt>
+            }
+        }
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.Id">Змінити</a> |
+    <a asp-action="Index">Повернутись</a>
+</div>

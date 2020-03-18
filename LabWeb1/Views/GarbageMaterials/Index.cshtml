@@ -1,0 +1,53 @@
+﻿@model IEnumerable<LabWeb1.GarbageMaterial>
+
+@{
+    ViewData["Title"] = "Матеріали";
+}
+
+<h1>Матеріали в @ViewBag.GarbageName</h1>
+
+<p>
+    <a asp-action="Create" asp-route-IdGarbage="@ViewBag.IdGarbage">Додати матеріал до @ViewBag.GarbageName</a>
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Material.Name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Material.MaterialCard)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Material.IdGarbageType)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Material.Info)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Material.Name)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Material.MaterialCard)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Material.IdGarbageType)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Material.Info)
+            </td>
+            <td>
+                <a asp-action="Edit" asp-route-id="@item.Id" asp-route-categoryId="@ViewBag.IdGarbage">Змінити</a> |
+                <a asp-action="Details" asp-route-id="@item.Id" asp-route-categoryId="@ViewBag.IdGarbage">Деталі</a> |
+                <a asp-action="Delete" asp-route-id="@item.Id" asp-route-categoryId="@ViewBag.IdGarbage">Видалити</a>
+            </td>
+        </tr>
+}
+    </tbody>
+</table>
