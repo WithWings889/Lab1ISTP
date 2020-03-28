@@ -1,0 +1,42 @@
+﻿@model WebApplication1.GarbageMaterial
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Деталі</h1>
+
+<div>
+    <h4>Матеріали в @ViewBag.GarbageName </h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.IdMaterialNavigation.Name)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.IdMaterialNavigation.Name)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.IdMaterialNavigation.MaterialCard)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.IdMaterialNavigation.MaterialCard)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.IdMaterialNavigation.Info)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.IdMaterialNavigation.Info)
+        </dd>
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.IdMaterialNavigation.IdGarbageType)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.IdMaterialNavigation.IdGarbageTypeNavigation.Name)
+        </dd>
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.Id" asp-route-categoryId="@ViewBag.IdGarbage">Змінити</a> |
+    <a asp-action="Index">Повернутись</a>
+</div>

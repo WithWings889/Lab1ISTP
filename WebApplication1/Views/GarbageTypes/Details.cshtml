@@ -1,0 +1,39 @@
+﻿@model WebApplication1.GarbageType
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Деталі</h1>
+
+<div>
+    <h4>Тип сміття</h4>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Name)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Name)
+        </dd>
+        @if (ViewBag.FactoriesLength != 0)
+        {
+            <dt>@ViewBag.Factory</dt>
+        }
+        @foreach (var f in ViewBag.FactoryList)
+        {
+            <dd class="col-sm-10">
+                <text>@f.Factory.Name</text>
+            </dd>
+            if (ViewBag.FactoryList[ViewBag.FactoriesLength - 1] != f)
+            {
+                <dt class="col-sm-2">
+                </dt>
+            }
+        }
+    </dl>
+</div>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model.Id">Змінити</a> |
+    <a asp-action="Index">Повернутись</a>
+</div>
