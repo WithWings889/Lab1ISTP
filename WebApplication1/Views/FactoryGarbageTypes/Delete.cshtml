@@ -6,22 +6,21 @@
 
 <h1>Видалення</h1>
 
-<h3>Ви впевнені, що бвжвєте видалити це?</h3>
+<h3>Ви впевнені, що бажаєтете видалити тип сміття?</h3>
 <div>
-    <h4>тип сміття для фабрики</h4>
     <hr />
     <dl class="row">
         <dt class = "col-sm-2">
             @Html.DisplayNameFor(model => model.IdGarbageType)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.IdGarbageType)
+            @Html.DisplayFor(model => model.IdGarbageTypeNavigation.Name)
         </dd>
         <dt class = "col-sm-2">
             @Html.DisplayNameFor(model => model.IdFactory)
         </dt>
         <dd class = "col-sm-10">
-            @Html.DisplayFor(model => model.IdFactory)
+            @Html.DisplayFor(model => model.IdFactoryNavigation.Name)
         </dd>
     </dl>
     
@@ -29,6 +28,6 @@
         <input type="hidden" asp-for="Id" />
         <input type="hidden" value="@ViewBag.IdFactory" name="IdFactory" />
         <input type="submit" value="Видалити" class="btn btn-danger" /> |
-        <a asp-action="Index" asp-route-id="@ViewBag.IdFactory">Повернутись</a>
+        <a asp-action="Index" asp-route-IdFactory="@ViewBag.IdFactory">Повернутись</a>
     </form>
 </div>

@@ -137,6 +137,8 @@ namespace WebApplication1.Controllers
         // GET: FactoryGarbageTypes/Delete/5
         public async Task<IActionResult> Delete(int? id, int? IdFactory)
         {
+            ViewBag.IdFactory = IdFactory;
+
             if (id == null)
             {
                 return NotFound();

@@ -1,0 +1,27 @@
+﻿@model IEnumerable<WebApplication1.Models.User>
+
+<link href="~/css/MyStyle.css" rel="stylesheet" />
+<link href="~/lib/bootstrap/dist/css/bootstrap_minty.min.css" rel="stylesheet" />
+
+<h2>Список користувачів</h2>
+<table class="table">
+    <tr><th>Email</th><th>Рік</th><th></th></tr>
+    @foreach (var user in Model)
+    {
+        <tr>
+            <td>@user.Email</td>
+            <td>@user.Year</td>
+            <td>
+                <form asp-action="Delete" asp-route-id="@user.Id" method="post">
+                    <a class="btn btn-sm btn-primary" asp-action="Edit" asp-route-userId="@user.Id">Права доступу</a>
+                    <a class="btn btn-sm btn-primary" asp-controller="Users" asp-action="Edit" asp-route-id="@user.Id">Змінити</a>
+                    <a class="btn btn-sm btn-primary" asp-controller="Users" asp-action="ChangePassword" asp-route-Name="@user.UserName">Змінити пароль</a>
+                    <button type="submit" class="btn btn-sm btn-danger" asp-controller="Users" asp-action="Delete" asp-route-id="@user.Id">
+                        Видалити
+                    </button>
+                </form>
+            </td>
+        </tr>
+    
+    }
+</table>

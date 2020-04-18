@@ -4,58 +4,89 @@
     ViewData["Title"] = "Сміття";
 }
 
-<h1>Сміття</h1>
+<link href="~/lib/bootstrap/dist/css/bootstrap_minty.min.css" rel="stylesheet" />
+<link href="~/css/MyStyle.css" rel="stylesheet" />
 
-<form class="form-inline my-2 my-lg-0" asp-area="" asp-controller="Garbages" asp-action="Index" method="POST">
-    <input class="form-control mr-sm-2" type="text" placeholder="Search" name="search" value="@ViewData["currentFilter"]" id="search">
-    <button class="btn btn-secondary my-2 my-sm-0" value="Search" type="submit">Search</button>
-</form>
+@if (ViewBag.Admin)
+{
+    <div class="card border-primary mb-3" style="max-width: 350px; float:right; margin:5px; padding:0;">
+        <div class="card-header" style="font-size:24px; text-align:center; font-weight: bold">Завантажити за допомогою excel</div>
+        <div class="card-body">
+            <h4 class="card-title">Оберіть файл</h4>
+            <p class="card-text">
+                @using (Html.BeginForm("Import", "Materials", FormMethod.Post, new { enctype = "multipart/form-data", id = "frm-excel" }))
+                {
+                    <div class="input-group mb-3">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" name="fileExcel" id="fileExcel">
+                            <label class="custom-file-label" for="fileExcel">Файл</label>
+                        </div>
+                        <div class="input-group-append">
+                            <input class="input-group-text btn btn-success" style="color:black" type="submit" value="Завантажити" />
+                        </div>
+                    </div>
+                }
+            </p>
+        </div>
+    </div>
+}
+<div style="float:left">
+    <h1>Сміття</h1>
 
-<p>
-    <a asp-action="Create">Створити</a>
-</p>
-<div>
-    <h3>Оберіть exel-файл для заватаження</h3>
-    @using (Html.BeginForm("Import", "Garabges", FormMethod.Post, new { enctype = "multipart/form-data", id = "frm-excel" }))
+    @if (ViewBag.Admin)
+    {<p>
+            <ul class="nav nav-pills">
+                <li class="nav-item">
+                    <a class="nav-link active" asp-action="Create">Створити</a>
+                </li>
+            </ul>
+        </p>
+    }
+    <form class="form-inline my-2 my-lg-0" style="margin-top:500px; padding-top:50px; background-position:bottom" asp-area="" asp-controller="Garbages" asp-action="Index" method="POST">
+        <input class="form-control mr-sm-2" type="text" placeholder="Знайти" name="search" value="@ViewData["currentFilter"]" id="search">
+        <button class="btn btn-secondary my-2 my-sm-0" value="Search" type="submit">Знайти</button>
+        @if (ViewBag.Admin || ViewBag.User)
+        {<ul class="nav nav-pills">
+                <li class="nav-item">
+                    <a class="nav-link active" style="margin-left:5px" asp-action="Export" asp-route-search="@ViewData["currentFilter"]">Завантажити</a>
+                </li>
+            </ul>
+        }
+    </form>
+
+    @if (ViewBag.Error != 0)
     {
-        <div>
-            Завантажте Excel-файл:
-            <input type="file" name="fileExcel" id="fileExcel" />
-            <div>
-                <input type="submit" value="Завантажити" />
-            </div>
+        <div class="alert alert-dismissible alert-secondary">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <strong>Помилка експорту у файл!</strong> Кількість помилок: @ViewBag.Error <a href="#" class="alert-link"> </a>.
         </div>
     }
 </div>
 
-<div>
-    <h3>Завантаження інформації в файл</h3>
-    <a asp-action="Export" asp-route-search="@ViewData["currentFilter"]">Завантажити</a>
-</div>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.Name)
-            </th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model)
-        {
+    <table class="table">
+        <thead>
             <tr>
-                <td>
-                    @Html.DisplayFor(modelItem => item.Name)
-                </td>
-                <td>
-                    <a asp-action="Edit" asp-route-id="@item.Id">Змінити</a> |
-                    <a asp-action="Materials" asp-route-id="@item.Id">Матеріали</a> |
-                    <a asp-action="Details" asp-route-id="@item.Id">Деталі</a> |
-                    <a asp-action="Delete" asp-route-id="@item.Id">Видалити</a>
-                </td>
+                <th>
+                    @Html.DisplayNameFor(model => model.Name)
+                </th>
+                <th></th>
             </tr>
-        }
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Name)
+                    </td>
+                    <td>
+                        <a asp-action="Edit" asp-route-id="@item.Id">Змінити</a> |
+                        <a asp-action="Materials" asp-route-id="@item.Id">Матеріали</a> |
+                        <a asp-action="Details" asp-route-id="@item.Id">Деталі</a> |
+                        <a asp-action="Delete" asp-route-id="@item.Id">Видалити</a>
+                    </td>
+                </tr>
+            }
+
+        </tbody>
+    </table>

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
@@ -26,8 +27,16 @@ namespace WebApplication1.Controllers
         }
 
         // GET: Garbages
-        public async Task<IActionResult> Index(string search = null)
+        public async Task<IActionResult> Index(string search = null, int errorCount = 0)
         {
+            var roles = ((ClaimsIdentity)User.Identity).Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
+            if (roles.Contains("admin"))
+                ViewBag.Admin = true;
+            else ViewBag.Admin = false;
+            if (roles.Contains("user"))
+                ViewBag.User = true;
+            else ViewBag.User = false;
+            ViewBag.Error = errorCount;
             ViewData["CurrentFilter"] = search;
             if (!string.IsNullOrEmpty(search))
             {
@@ -193,6 +202,7 @@ namespace WebApplication1.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Import(IFormFile fileExcel)
         {
+            int errorCount = 0;
             if (ModelState.IsValid)
             {
                 if (fileExcel != null)
@@ -218,16 +228,40 @@ namespace WebApplication1.Controllers
                                 {
                                     newtype = new GarbageType();
                                     newtype.Name = worksheet.Name;
-                                    _context.GarbageType.Add(newtype);
+                                    if(TryValidateModel(newtype, nameof(GarbageType)))
+                                        _context.GarbageType.Add(newtype);
+                                    else
+                                    {
+                                        errorCount++;
+                                        continue;
+                                    }
                                 }
                                 //перегляд усіх рядків                    
                                 foreach (IXLRow row in worksheet.RowsUsed().Skip(1))
                                 {
                                     try
                                     {
-                                        Garbage garbage = new Garbage();
-                                        garbage.Name = row.Cell(1).Value.ToString();
-                                        _context.Garbage.Add(garbage);
+                                        Garbage garbage; 
+                                        
+                                        var g = (from gar in _context.Garbage
+                                                 where gar.Name.Contains(row.Cell(1).Value.ToString())
+                                                 select gar).ToList();
+                                        if (g.Count > 0)
+                                        {
+                                            garbage = g[0];
+                                        }
+                                        else
+                                        {
+                                            garbage = new Garbage();
+                                            garbage.Name = row.Cell(1).Value.ToString();
+                                            if (TryValidateModel(garbage, nameof(Garbage)))
+                                                _context.Garbage.Add(garbage);
+                                            else
+                                            {
+                                                errorCount++;
+                                                continue;
+                                            }
+                                        }
                                         //у разі наявності автора знайти його, у разі відсутності - додати
                                         for (int i = 2; i <= 5; i++)
                                         {
@@ -241,21 +275,34 @@ namespace WebApplication1.Controllers
                                                 if (a.Count > 0)
                                                 {
                                                     material = a[0];
-                                                    GarbageMaterial gm = new GarbageMaterial();
-                                                    gm.IdGarbageNavigation = garbage;
-                                                    gm.IdMaterialNavigation = material;
-                                                    _context.GarbageMaterial.Add(gm);
+
+                                                    GarbageMaterial gm;
+                                                    var b = (from garmat in _context.GarbageMaterial
+                                                             where garmat.IdGarbageNavigation.Name == garbage.Name &&
+                                                                   garmat.IdMaterialNavigation.Name == material.Name
+                                                             select garmat).ToList();
+                                                    if (a.Count > 0)
+                                                    {
+                                                        errorCount++;
+                                                    }
+                                                    else
+                                                    {
+                                                        gm = new GarbageMaterial();
+                                                        gm.IdGarbageNavigation = garbage;
+                                                        gm.IdMaterialNavigation = material;
+                                                        _context.GarbageMaterial.Add(gm);
+                                                    }
                                                 }
                                                 else
                                                 {
-                                                    
+                                                    ++errorCount;
                                                 }
                                             }
                                         }
                                     }
                                     catch (Exception e)
                                     {
-                                        //logging самостійно :)
+                                        ++errorCount;
 
                                     }
                                 }
@@ -266,7 +313,7 @@ namespace WebApplication1.Controllers
 
                 await _context.SaveChangesAsync();
             }
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Index), new { errorCount = errorCount });
         }
         private async void DeleteMaterialInGarbage(int id)
         {
@@ -281,7 +328,6 @@ namespace WebApplication1.Controllers
 
         int MaxLengthMaterials(List<Garbage> garbage, string search)
         {
-            //var garbage = _context.Garbage.Where(g => g.Name.Contains(search)).Include(g => g.GarbageMaterial).ToList();
             int max = garbage[0].GarbageMaterial.Count();
             for(int i = 1; i < garbage.Count; ++i)
             {
@@ -294,45 +340,64 @@ namespace WebApplication1.Controllers
         {
             using (XLWorkbook workbook = new XLWorkbook(XLEventTracking.Disabled))
             {
-                var types = _context.GarbageMaterial.Where(a => a.IdGarbageNavigation.Name.Contains(search)).
-                                                     Select(a => a.IdMaterialNavigation.IdGarbageTypeNavigation).
-                                                     Distinct().
-                                                     ToList();
-                
-                //тут, для прикладу ми пишемо усі книжки з БД, в своїх проектах ТАК НЕ РОБИТИ (писати лише вибрані)
-                foreach (var t in types)
+                List<GarbageType> types;
+                if (search == null)
                 {
-                    var worksheet = workbook.Worksheets.Add(t.Name);
-
-                    var garbages = _context.Garbage.Where(a => a.Name.Contains(search)).Include(a => a.GarbageMaterial).ToList();
-
-                    worksheet.Cell("A1").Value = "Назва";
-                    int length = MaxLengthMaterials(garbages, search);
-                    for (int i = 0; i < length; ++i)
-                    {
-                        worksheet.Cell(1, i + 2).Value = "Матеріал" + i.ToString();
-                    }
-                    worksheet.Row(1).Style.Font.Bold = true;
-
-                   
-                    //нумерація рядків/стовпчиків починається з індекса 1 (не 0)
-                    for (int i = 0; i < garbages.Count; i++)
-                    {
-                        //worksheet.Cell().Value = "Автор 3";
-                        worksheet.Cell(i + 2, 1).Value = garbages[i].Name;
-
-                        var gm = _context.GarbageMaterial.Where(a => a.IdGarbage == garbages[i].Id).Include(a => a.IdMaterialNavigation).ToList();
-                        //більше 4-ох нікуди писати
-                        int j = 0;
-                        foreach (var m in gm)
-                        {
-                            worksheet.Cell(i + 2, j + length + 1).Value = m.IdMaterialNavigation.Name;
-                            j++;
-
-                        }
-
-                    }
+                    types = _context.GarbageType.Include(f => f.Material).ToList();
                 }
+                else
+                    types = _context.GarbageMaterial.Where(a => a.IdGarbageNavigation.Name.Contains(search)).
+                                                    Select(a => a.IdMaterialNavigation.IdGarbageTypeNavigation).
+                                                    Distinct().
+                                                    ToList();
+
+
+                    if (types.Count() == 0)
+                    {
+                        var worksheet = workbook.Worksheets.Add("Сміття на складі");
+                        worksheet.Cell("A1").Value = "За даними параметрами не знайдено сміття";
+                    }
+                    else
+                    {
+                        foreach (var t in types)
+                        {
+                            var worksheet = workbook.Worksheets.Add(t.Name);
+                            List<Garbage> garbages;
+                            if (search == null)
+                                garbages = _context.Garbage.Include(a => a.GarbageMaterial).ToList();
+                            else
+                                garbages = _context.Garbage.Where(a => a.Name.Contains(search)).Include(a => a.GarbageMaterial).ToList();
+
+                            worksheet.Cell("A1").Value = "Назва";
+                            int length = MaxLengthMaterials(garbages, search);
+                            for (int i = 0; i < length; ++i)
+                            {
+                                worksheet.Cell(1, i + 2).Value = "Матеріал" + i.ToString();
+                            }
+                            worksheet.Row(1).Style.Font.Bold = true;
+
+
+                            for (int i = 0; i < garbages.Count; i++)
+                            {
+                                worksheet.Cell(i + 2, 1).Value = garbages[i].Name;
+                                List<GarbageMaterial> gm;
+                                if (search == null)
+                                    gm = _context.GarbageMaterial.Include(a => a.IdGarbageNavigation).Include(a => a.IdMaterialNavigation).ToList();
+                                else
+                                    gm = _context.GarbageMaterial.Where(a => a.IdGarbage == garbages[i].Id).Include(a => a.IdMaterialNavigation).ToList();
+
+                                int j = 0;
+                                foreach (var m in gm)
+                                {
+                                    worksheet.Cell(i + 2, j + length + 1).Value = m.IdMaterialNavigation.Name;
+                                    j++;
+
+                                }
+
+                            }
+                        }
+                    }
+                
                 using (var stream = new MemoryStream())
                 {
                     workbook.SaveAs(stream);

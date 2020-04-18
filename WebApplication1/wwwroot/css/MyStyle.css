@@ -1,0 +1,10 @@
+﻿body {
+}
+h1, h2{
+    margin: 20px;
+    clear:both;
+}
+
+input.form-control{
+    width:300px;
+}

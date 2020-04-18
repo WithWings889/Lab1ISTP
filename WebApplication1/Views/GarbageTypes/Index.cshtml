@@ -3,96 +3,118 @@
 @{
     ViewData["Title"] = "Index";
 }
+
 <link href="~/lib/bootstrap/dist/css/bootstrap_minty.min.css" rel="stylesheet" />
-<h1>Типи сміття</h1>
+<link href="~/css/MyStyle.css" rel="stylesheet" />
 
-<form class="form-inline my-2 my-lg-0" asp-area="" asp-controller="GarbageTypes" asp-action="Index" method="POST">
-    <input class="form-control mr-sm-2" type="text" placeholder="Search" name="search" value="@ViewData["currentFilter"]" id="search">
-    <button class="btn btn-secondary my-2 my-sm-0" value="Search" type="submit">Search</button>
-</form>
+@if (ViewBag.Admin)
+{
+    <div class="card border-primary mb-3" style="max-width: 350px; float:right; margin:5px; padding:0;">
+        <div class="card-header" style="font-size:24px; text-align:center; font-weight: bold">Завантажити за допомогою excel</div>
+        <div class="card-body">
+            <h4 class="card-title">Оберіть файл</h4>
+            <p class="card-text">
+                @using (Html.BeginForm("Import", "GarbageTypes", FormMethod.Post, new { enctype = "multipart/form-data", id = "frm-excel" }))
+                {
+                    <div class="input-group mb-3">
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" name="fileExcel" id="fileExcel">
+                            <label class="custom-file-label" for="fileExcel">Файл</label>
+                        </div>
+                        <div class="input-group-append">
+                            <input class="input-group-text btn btn-success" style="color:black" type="submit" value="Завантажити" />
+                        </div>
+                    </div>
+                }
+            </p>
+        </div>
+    </div>
+}
+<div style="float:left">
+    <h1>Типи сміття</h1>
+    @if (ViewBag.Admin)
+    {<p>
+            <ul class="nav nav-pills">
+                <li class="nav-item">
+                    <a class="nav-link active" asp-action="Create">Створити</a>
+                </li>
+            </ul>
+        </p>
+    }
 
-<div>
-    <h3>Оберіть exel-файл для заватаження</h3>
-    @using (Html.BeginForm("Import", "GarabgeTypes", FormMethod.Post, new { enctype = "multipart/form-data", id = "frm-excel" }))
+    <form class="form-inline my-2 my-lg-0" style="margin-top:500px; padding-top:50px; background-position:bottom" asp-area="" asp-controller="GarbageTypes" asp-action="Index" method="POST">
+        <input class="form-control mr-sm-2" type="text" placeholder="Знайти" name="search" value="@ViewData["currentFilter"]" id="search">
+        <button class="btn btn-secondary my-2 my-sm-0" value="Search" type="submit">Знайти</button>
+        @if (ViewBag.Admin || ViewBag.User)
+        {<ul class="nav nav-pills">
+                <li class="nav-item">
+                    <a class="nav-link active" style="margin-left:5px" asp-action="Export" asp-route-search="@ViewData["currentFilter"]">Завантажити</a>
+                </li>
+            </ul>
+        }
+    </form>
+
+    @if (ViewBag.Error != 0)
     {
-        <div>
-            Завантажте Excel-файл:
-            <input type="file" name="fileExcel" id="fileExcel" />
-            <div>
-                <input type="submit" value="Завантажити" />
-            </div>
+        <div class="alert alert-dismissible alert-secondary">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <strong>Помилка експорту у файл!</strong> Кількість помилок: @ViewBag.Error <a href="#" class="alert-link"> </a>.
         </div>
     }
 </div>
 
-<div>
-    <h3>Завантаження інформації в файл</h3>
-    <a asp-action="Export" asp-route-search="@ViewData["currentFilter"]">Завантажити</a>
-</div>
 
-
-<ul class="nav nav-pills">
-    <li class="nav-item">
-        <a class="nav-link active" asp-action="Edit">Створити</a>
-    </li>
-</ul>
-<table class="table">
-    <thead>
-        <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.Name)
-            </th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model)
-        {
+    <table class="table">
+        <thead>
             <tr>
-                <td>
-                    @Html.DisplayFor(modelItem => item.Name)
-                </td>
-                <td>
-                    <ul class="nav nav-pills">
-                        <li class="nav-item">
-                            <a class="nav-link active" asp-action="Edit" asp-route-id="@item.Id">Змінити</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" asp-action="Details" asp-route-id="@item.Id">Деталі</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" asp-action="Delete" asp-route-id="@item.Id">Видалити</a>
-                        </li>
-                    </ul>
-                </td>
+                <th>
+                    @Html.DisplayNameFor(model => model.Name)
+                </th>
+                <th></th>
             </tr>
-        }
-    </tbody>
-</table>
-<div class="container">
-    <div id="chart1"> </div>
-</div>
+        </thead>
+        <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>
+                        @Html.DisplayFor(modelItem => item.Name)
+                    </td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@item.Id">Деталі</a>
+                        @if (ViewBag.Admin)
+                        {<a asp-action="Edit" asp-route-id="@item.Id">Змінити</a>
+                            <a asp - action="Delete" asp-route-id="@item.Id"> Видалити </a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div class="container">
+        <div id="chart1"> </div>
+    </div>
 
-@section scripts {
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    @section scripts {
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 
-    <script>
-        google.charts.load('current', { 'packages': ['corechart'] });
-        google.charts.setOnLoadCallback(drawChart);
+        <script>
+            google.charts.load('current', { 'packages': ['corechart'] });
+            google.charts.setOnLoadCallback(drawChart);
 
-        function drawChart() {
-            $.get('api/Charts/JsonData', function (jsonData) {
+            function drawChart() {
+                $.get('api/Charts/JsonData', function (jsonData) {
 
-                data = google.visualization.arrayToDataTable(jsonData, false);
-                var option = {
-                    title: "Співвідношення к-ті матеріалів та типів сміття",
-                    width: 500,
-                    height: 400,
-                    is3D: true
-                };
-                chart = new google.visualization.PieChart(document.getElementById('chart1'));
-                chart.draw(data, option);
-            })
-        }
-    </script>
-}
+                    data = google.visualization.arrayToDataTable(jsonData, false);
+                    var option = {
+                        title: "Співвідношення к-ті матеріалів та типів сміття",
+                        width: 500,
+                        height: 400,
+                        is3D: true
+                    };
+                    chart = new google.visualization.PieChart(document.getElementById('chart1'));
+                    chart.draw(data, option);
+                })
+            }
+        </script>
+    }

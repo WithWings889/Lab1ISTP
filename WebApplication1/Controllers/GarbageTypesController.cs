@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
@@ -28,8 +29,17 @@ namespace WebApplication1.Controllers
                                         ToList();
         }
         // GET: GarbageTypes
-        public async Task<IActionResult> Index(string search = null)
+        public async Task<IActionResult> Index(string search = null, int errorCount = 0)
         {
+            var roles = ((ClaimsIdentity)User.Identity).Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
+            if (roles.Contains("admin"))
+                ViewBag.Admin = true;
+            else ViewBag.Admin = false;
+            if (roles.Contains("user"))
+                ViewBag.User = true;
+            else ViewBag.User = false;
+
+            ViewBag.Error = errorCount;
             ViewData["CurrentFilter"] = search;
             if (!string.IsNullOrEmpty(search))
             {
@@ -230,10 +240,12 @@ namespace WebApplication1.Controllers
                     _context.FactoryGarbageType.Remove(i);
             }
         }
+
         [HttpPost]
-        [ValidateAntiForgeryToken]
+        //[ValidateAntiForgeryToken]
         public async Task<IActionResult> Import(IFormFile fileExcel)
         {
+            int errorCount = 0;
             if (ModelState.IsValid)
             {
                 if (fileExcel != null)
@@ -245,31 +257,34 @@ namespace WebApplication1.Controllers
                         {
                             //перегляд усіх листів (в даному випадку категорій)
                             foreach (IXLWorksheet worksheet in workBook.Worksheets)
-                            {
-                                //worksheet.Name - назва категорії. Пробуємо знайти в БД, якщо відсутня, то створюємо нову
-                                GarbageType newtype;
-                                var t = (from typ in _context.GarbageType
-                                         where typ.Name.Contains(worksheet.Name)
-                                         select typ).ToList();
-                                if (t.Count > 0)
-                                {
-                                    newtype = t[0];
-                                }
-                                else
-                                {
-                                    newtype = new GarbageType();
-                                    newtype.Name = worksheet.Name;
-                                    //додати в контекст
-                                    _context.GarbageType.Add(newtype);
-                                }
-                                //перегляд усіх рядків                    
+                            {           
                                 foreach (IXLRow row in worksheet.RowsUsed().Skip(1))
                                 {
-
-                                    //у разі наявності автора знайти його, у разі відсутності - додати
-                                    for (int i = 2; i <= 5; i++)
+                                    GarbageType newtype;
+                                    var t = (from typ in _context.GarbageType
+                                             where typ.Name.Contains(row.Cell(1).Value.ToString())
+                                             select typ).ToList();
+                                    if (t.Count > 0)
                                     {
-                                        if (row.Cell(i).Value.ToString().Length > 0)
+                                        newtype = t[0];
+                                    }
+                                    else
+                                    {
+                                        newtype = new GarbageType();
+                                        newtype.Name = row.Cell(1).Value.ToString();
+                                        if (TryValidateModel(newtype, nameof(GarbageType)))
+                                            _context.GarbageType.Add(newtype);
+                                        else
+                                        {
+                                            ++errorCount;
+                                            continue;
+                                        }
+                                    }
+                                    int i = 2;
+                                    //while(true)
+                                    for(i = 2; i < 5; ++i)
+                                    {
+                                        if (row.Cell(i).Value.ToString().Length != 0)
                                         {
                                             try
                                             {
@@ -283,23 +298,17 @@ namespace WebApplication1.Controllers
                                                 }
                                                 else
                                                 {
-                                                    material = new Material();
-                                                    material.Name = row.Cell(1).Value.ToString();
-                                                    material.MaterialCard = row.Cell(2).Value.ToString();
-                                                    material.Info = row.Cell(3).Value.ToString();
-                                                    material.IdGarbageTypeNavigation = newtype;
-                                                    //додати в контекст
-                                                    _context.Add(material);
+                                                    errorCount++;
                                                 }
 
                                             }
                                             catch (Exception e)
                                             {
-                                                //logging самостійно :)
-
+                                                ++errorCount;
                                             }
                                         }
-
+                                        else
+                                            break;
 
                                     }
                                 }
@@ -309,25 +318,51 @@ namespace WebApplication1.Controllers
 
                     await _context.SaveChangesAsync();
                 }
-                
+
             }
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Index), new { errorCount = errorCount });
+        }
+        int MaxLengthMaterials(List<GarbageType> garbageType)
+        {
+            //var garbage = _context.Garbage.Where(g => g.Name.Contains(search)).Include(g => g.GarbageMaterial).ToList();
+            int max = garbageType[0].Material.Count();
+            for (int i = 1; i < garbageType.Count; ++i)
+            {
+                if (max < garbageType[i].Material.Count)
+                    max = garbageType[i].Material.Count;
+            }
+            return max;
         }
         public ActionResult Export(string search = null)
         {
             using (XLWorkbook workbook = new XLWorkbook(XLEventTracking.Disabled))
             {
-                var types = _context.GarbageType.Where(a => a.Name.Contains(search)).ToList();
-                //тут, для прикладу ми пишемо усі книжки з БД, в своїх проектах ТАК НЕ РОБИТИ (писати лише вибрані)
-                foreach (var t in types)
+                List<GarbageType> types;
+                if (search == null)
                 {
-                    var worksheet = workbook.Worksheets.Add(search);
+                    types = _context.GarbageType.Include(a => a.Material).ToList();
+                }
+                else
+                    types = _context.GarbageType.Where(a => a.Name.Contains(search)).Include(a => a.Material).Distinct().ToList();
+                var worksheet = workbook.Worksheets.Add("Типи сміття");
+
+                if (types.Count() == 0)
+                {
+                    worksheet.Cell("A1").Value = "За даними параметрами не знайдено жодного типу сміття";
+                }
+                else
+                {
+                    int length = MaxLengthMaterials(types);
 
                     worksheet.Cell("A1").Value = "Назва";
+
+                    for (int i = 0; i < length; ++i)
+                    {
+                        worksheet.Cell(1, i + 2).Value = "Матеріал" + (i + 1).ToString();
+                    }
                     worksheet.Row(1).Style.Font.Bold = true;
 
 
-                    //нумерація рядків/стовпчиків починається з індекса 1 (не 0)
                     for (int i = 0; i < types.Count; i++)
                     {
                         //worksheet.Cell().Value = "Автор 3";
@@ -338,13 +373,14 @@ namespace WebApplication1.Controllers
                         int j = 0;
                         foreach (var m in mt)
                         {
-                            worksheet.Cell(i + 2, j + 4).Value = m.Name;
+                            worksheet.Cell(i + 2, j + 2).Value = m.Name;
                             j++;
 
                         }
 
                     }
                 }
+
                 using (var stream = new MemoryStream())
                 {
                     workbook.SaveAs(stream);
@@ -353,10 +389,11 @@ namespace WebApplication1.Controllers
                     return new FileContentResult(stream.ToArray(),
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                     {
-                        FileDownloadName = $"Factories_{DateTime.UtcNow.ToShortDateString()}.xlsx"
+                        FileDownloadName = $"GarbageType_{DateTime.UtcNow.ToShortDateString()}.xlsx"
                     };
                 }
             }
+
         }
     }
 }

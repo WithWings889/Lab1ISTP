@@ -2,18 +2,23 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using WebApplication1;
+using WebApplication1.Models;
 
 namespace WebApplication1.Controllers
 {
     public class FactoriesController : Controller
     {
+        private readonly SignInManager<User> _signInManager;
         private readonly RecyclingNowContext _context;
 
         public FactoriesController(RecyclingNowContext context)
@@ -29,8 +34,17 @@ namespace WebApplication1.Controllers
         }
 
         // GET: Factories
-        public async Task<IActionResult> Index(string search = null)
+        public async Task<IActionResult> Index(string search = null, int errorCount = 0)
         {
+            var roles = ((ClaimsIdentity)User.Identity).Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value);
+            if (roles.Contains("admin"))
+                ViewBag.Admin = true;
+            else ViewBag.Admin = false;
+            if (roles.Contains("user"))
+                ViewBag.User = true;
+            else ViewBag.User = false;
+
+            ViewBag.Error = errorCount;
             ViewData["CurrentFilter"] = search;
             if (!string.IsNullOrEmpty(search))
             {
@@ -70,6 +84,7 @@ namespace WebApplication1.Controllers
         }
 
         // GET: Factories/Create
+        [Authorize(Roles="admin")]
         public IActionResult Create()
         {
             return View();
@@ -97,6 +112,7 @@ namespace WebApplication1.Controllers
         }
 
         // GET: Factories/Edit/5
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
@@ -148,6 +164,7 @@ namespace WebApplication1.Controllers
         }
 
         // GET: Factories/Delete/5
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -207,25 +224,24 @@ namespace WebApplication1.Controllers
         {
             return _context.Factory.Any(e => e.Id == id);
         }
+        [Authorize(Roles ="admin")]
         [HttpPost]
-        [ValidateAntiForgeryToken]
+       // [ValidateAntiForgeryToken]
         public async Task<IActionResult> Import(IFormFile fileExcel)
         {
+            int errorCount = 0;
             if (ModelState.IsValid)
             {
                 if (fileExcel != null)
                 {
                     using (var stream = new FileStream(fileExcel.FileName, FileMode.Create))
                     {
+                        
                         await fileExcel.CopyToAsync(stream);
                         using (XLWorkbook workBook = new XLWorkbook(stream, XLEventTracking.Disabled))
                         {
-                            //перегляд усіх листів (в даному випадку категорій)
                             foreach (IXLWorksheet worksheet in workBook.Worksheets)
                             {
-                                //worksheet.Name - назва категорії. Пробуємо знайти в БД, якщо відсутня, то створюємо нову
-                                
-                                //перегляд усіх рядків                    
                                 foreach (IXLRow row in worksheet.RowsUsed().Skip(1))
                                 {
                                     try
@@ -244,14 +260,19 @@ namespace WebApplication1.Controllers
                                             factory.Name = row.Cell(1).Value.ToString();
                                             factory.Website = row.Cell(2).Value.ToString();
                                             factory.Address = row.Cell(3).Value.ToString();
-                                            _context.Factory.Add(factory);
+                                            if(TryValidateModel(factory, nameof(Factory)))
+                                                _context.Factory.Add(factory);
+                                            else
+                                            {
+                                                errorCount++;
+                                                continue;
+                                            }
                                         }
-                                        
+
                                         int i = 4;
-                                        //у разі наявності автора знайти його, у разі відсутності - додати
-                                        do
+                                        while(true)
                                         {
-                                            
+
                                             if (row.Cell(i).Value.ToString().Length != 0)
                                             {
                                                 GarbageType type;
@@ -267,7 +288,10 @@ namespace WebApplication1.Controllers
                                                 {
                                                     type = new GarbageType();
                                                     type.Name = row.Cell(i).Value.ToString();
-                                                    //додати в контекст
+                                                    if (!TryValidateModel(type, nameof(GarbageType)))
+                                                    {
+                                                        errorCount++;
+                                                    }
                                                     _context.Add(type);
                                                 }
                                                 FactoryGarbageType ft = new FactoryGarbageType();
@@ -279,12 +303,11 @@ namespace WebApplication1.Controllers
                                             }
                                             else
                                                 break;
-                                        } while (true);
+                                        }
                                     }
                                     catch (Exception e)
                                     {
-                                        //viewModel.ErrorsTotal++;
-
+                                        ++errorCount;
                                     }
                                 }
                             }
@@ -293,45 +316,72 @@ namespace WebApplication1.Controllers
                 }
 
                 await _context.SaveChangesAsync();
+                
             }
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Index), new { errorCount = errorCount });
+        }
+        int MaxLengthTypes(List<Factory> factory)
+        {
+            //var garbage = _context.Garbage.Where(g => g.Name.Contains(search)).Include(g => g.GarbageMaterial).ToList();
+            int max = factory[0].FactoryGarbageType.Count();
+            for (int i = 1; i < factory.Count; ++i)
+            {
+                if (max < factory[i].FactoryGarbageType.Count)
+                    max = factory[i].FactoryGarbageType.Count;
+            }
+            return max;
         }
 
         public ActionResult Export(string search = null)
         {
             using (XLWorkbook workbook = new XLWorkbook(XLEventTracking.Disabled))
             {
-                var factories = _context.Factory.Where(a => a.Name.Contains(search)).ToList();
-                //тут, для прикладу ми пишемо усі книжки з БД, в своїх проектах ТАК НЕ РОБИТИ (писати лише вибрані)
-                foreach (var t in factories)
+                List<Factory> factories;
+                if (search == null)
                 {
-                    var worksheet = workbook.Worksheets.Add(search);
+                    factories = _context.Factory.Include(f => f.FactoryGarbageType).ToList();
+                    search = "Фабрики";
+                }
+                else
+                    factories = _context.Factory.Where(a => a.Name.Contains(search)).Include(f => f.FactoryGarbageType).Distinct().ToList();
+                var worksheet = workbook.Worksheets.Add(search);
+
+                if (factories.Count() == 0)
+                {
+                    worksheet.Cell("A1").Value = "За даними параметрами не знайдено жодної фабрики";
+                }
+                else
+                {
+                    int length = MaxLengthTypes(factories);
 
                     worksheet.Cell("A1").Value = "Назва";
                     worksheet.Cell("B1").Value = "Адреса";
                     worksheet.Cell("C1").Value = "Вебсайт";
+                    for (int i = 0; i < length; ++i)
+                    {
+                        worksheet.Cell(1, i + 4 ).Value = "Тип сміття" + (i + 1).ToString();
+                    }
                     worksheet.Row(1).Style.Font.Bold = true;
-                    
 
-                    //нумерація рядків/стовпчиків починається з індекса 1 (не 0)
+
                     for (int i = 0; i < factories.Count; i++)
                     {
-                        //worksheet.Cell().Value = "Автор 3";
                         worksheet.Cell(i + 2, 1).Value = factories[i].Name;
                         worksheet.Cell(i + 2, 2).Value = factories[i].Address;
                         worksheet.Cell(i + 2, 3).Value = factories[i].Website;
 
                         var ft = _context.FactoryGarbageType.Where(a => a.IdFactory == factories[i].Id).Include(a => a.IdGarbageTypeNavigation).ToList();
-                        //більше 4-ох нікуди писати
+                        
                         int j = 0;
                         foreach (var f in ft)
                         {
                             worksheet.Cell(i + 2, j + 4).Value = f.IdGarbageTypeNavigation.Name;
                             j++;
-                            
+
                         }
 
                     }
+
                 }
                 using (var stream = new MemoryStream())
                 {
